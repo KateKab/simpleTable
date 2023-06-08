@@ -26,7 +26,7 @@ export default {
             signInWithEmailAndPassword(auth, this.email, this.password)
                 .then((data) => {
                     alert('Successfully logged in!');
-                    this.router.push('/feed')
+                    this.router.push('/table')
                 })
                 .catch(error => {
                     switch (error.code) {

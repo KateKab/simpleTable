@@ -25,7 +25,7 @@ export default {
             createUserWithEmailAndPassword(auth, this.email, this.password)
                 .then(() => {
                     alert('Successfully registered!');
-                    this.router.push('/feed')
+                    this.router.push('/table')
                 })
                 .catch(error => {
                     console.log(error.code)
