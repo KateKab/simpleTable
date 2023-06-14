@@ -28,7 +28,18 @@
     <tbody>
       <!-- Loop through the list get the each student data -->
       <tr v-for="laureate in paginatedLaureates" :key="laureate">
-        <td v-for="field in fields" :key="field">{{ laureate[field] }}</td>
+        <td v-for="field in fields" :key="field">
+          <!-- отображаем инпут если индекс кликнутого лауреата совпадает с текущим-->
+          <input
+            type="text"
+            v-if="sortedLaureates.indexOf(laureate) == index"
+            :value="laureate[field]"
+            @keyup.enter="saveChange(index, field, $event)"
+          />
+          <template v-else> {{ laureate[field] }}</template>
+        </td>
+        <button @click="edit(laureate)">Edit</button>
+        <button>Delete</button>
       </tr>
     </tbody>
   </table>
@@ -37,7 +48,7 @@
 <script>
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "vue-router";
-import { getDatabase, ref, onValue } from "firebase/database";
+import { getDatabase, ref, onValue, update } from "firebase/database";
 
 const auth = getAuth();
 const router = useRouter();
@@ -48,12 +59,12 @@ export default {
     return {
       laureates: [],
       searchQuery: "",
-      fields: ["N0", "Surname", "Name", "Country", "Category", "Year"],
+      fields: ["Surname", "Name", "Country", "Category", "Year"],
       currentPage: 0,
       pageItems: 20,
       sortedLaureates: [],
       asc: true,
-      a: [],
+      index: -1,
     };
   },
 
@@ -69,6 +80,9 @@ export default {
   },
 
   methods: {
+    edit(laureate) {
+      this.index = this.sortedLaureates.indexOf(laureate);
+    },
     next() {
       this.currentPage++;
     },
@@ -84,7 +98,6 @@ export default {
         this.asc = true;
       }
     },
-
     search() {
       this.sortedLaureates = [];
       this.laureates.forEach((laureate) => {
@@ -95,6 +108,19 @@ export default {
           this.sortedLaureates.push(laureate);
         }
       });
+    },
+    saveChange(index, field, e) {
+      var updates = {};
+
+      field = field.toLowerCase();
+
+      if (field === "year" || field === "category") {
+        updates["/laureates/" + index + "/" + "prizes/0/" + field] =
+          e.target.value;
+      } else updates["/laureates/" + index + "/" + field] = e.target.value;
+
+      update(ref(db), updates);
+      window.location.reload();
     },
   },
 
@@ -112,12 +138,9 @@ export default {
     });
 
     onValue(laureatesRef, (snapshot) => {
-      let i = 0;
       const laureateData = snapshot.val();
       laureateData.forEach((laureate) => {
-        i++;
         this.laureates.push({
-          N0: i,
           Surname: laureate.surname,
           Name: laureate.firstname,
           Country: laureate.bornCountryCode,
