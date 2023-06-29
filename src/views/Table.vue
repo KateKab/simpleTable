@@ -12,8 +12,12 @@
     <label>{{ currentPage + 1 }}/{{ pages }}</label>
     <button @click="next" :disabled="currentPage == pages - 1">next</button>
   </div>
-
-  <table id="tableComponent">
+  <div>
+    <button @click="addModal = true">Add</button>
+    <add-item v-if="addModal" @addLaureate="addLaureate"></add-item>
+  </div>
+  <loader v-if="spinner"></loader>
+  <table v-else id="tableComponent">
     <caption>
       Nobel Prize Laureates
     </caption>
@@ -26,20 +30,22 @@
       </tr>
     </thead>
     <tbody>
-      <!-- Loop through the list get the each student data -->
+      <!-- Loop through the list get the each laureate data -->
       <tr v-for="laureate in paginatedLaureates" :key="laureate">
-        <td v-for="field in fields" :key="field">
+        <td v-if="laureate" v-for="field in fields" :key="field">
           <!-- отображаем инпут если индекс кликнутого лауреата совпадает с текущим-->
           <input
             type="text"
-            v-if="sortedLaureates.indexOf(laureate) == index"
-            :value="laureate[field]"
+            v-if="laureates.indexOf(laureate) == index"
+            :value="getValue(laureate, field)"
             @keyup.enter="saveChange(index, field, $event)"
           />
-          <template v-else> {{ laureate[field] }}</template>
+          <template v-else>{{ getValue(laureate, field) }}</template>
         </td>
-        <button @click="edit(laureate)">Edit</button>
-        <button>Delete</button>
+        <template v-if="laureate">
+          <button @click="edit(laureate)">Edit</button>
+          <button @click="remove(laureate)">Delete</button></template
+        >
       </tr>
     </tbody>
   </table>
@@ -48,7 +54,16 @@
 <script>
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "vue-router";
-import { getDatabase, ref, onValue, update } from "firebase/database";
+import {
+  getDatabase,
+  ref,
+  onValue,
+  update,
+  remove,
+  set,
+} from "firebase/database";
+import Loader from "../components/Loader.vue";
+import AddItem from "../components/addItem.vue";
 
 const auth = getAuth();
 const router = useRouter();
@@ -59,29 +74,40 @@ export default {
     return {
       laureates: [],
       searchQuery: "",
-      fields: ["Surname", "Name", "Country", "Category", "Year"],
+      fields: ["surname", "firstname", "bornCountryCode", "category", "year"],
       currentPage: 0,
-      pageItems: 20,
-      sortedLaureates: [],
+      pageItems: 1000,
       asc: true,
       index: -1,
+      spinner: false,
+      addModal: false,
+      lala: [],
     };
+  },
+  components: {
+    Loader,
+    AddItem,
   },
 
   computed: {
     pages() {
-      return Math.ceil(this.sortedLaureates.length / this.pageItems);
+      return Math.ceil(this.laureates.length / this.pageItems);
     },
     paginatedLaureates() {
       let start = this.currentPage * this.pageItems;
       let end = start + this.pageItems;
-      return this.sortedLaureates.slice(start, end);
+      return this.laureates.slice(start, end);
     },
   },
 
   methods: {
+    getValue(laureate, field) {
+      if (field == "year" || field == "category") {
+        return laureate.prizes[0][field];
+      } else return laureate[field];
+    },
     edit(laureate) {
-      this.index = this.sortedLaureates.indexOf(laureate);
+      this.index = this.laureates.indexOf(laureate);
     },
     next() {
       this.currentPage++;
@@ -91,41 +117,70 @@ export default {
     },
     sortTable(field) {
       if (this.asc) {
-        this.sortedLaureates.sort((x, y) => (x[field] > y[field] ? -1 : 1));
+        this.laureates.sort((x, y) => (x[field] > y[field] ? -1 : 1));
         this.asc = false;
       } else {
-        this.sortedLaureates.sort((x, y) => (x[field] < y[field] ? -1 : 1));
+        this.laureates.sort((x, y) => (x[field] < y[field] ? -1 : 1));
         this.asc = true;
       }
     },
     search() {
-      this.sortedLaureates = [];
+      this.spinner = true;
+      const laureatesRef = ref(db, "laureates/");
+      onValue(laureatesRef, (snapshot) => {
+        const laureateData = snapshot.val();
+        console.log(typeof this.laureates);
+        this.laureates = laureateData;
+        this.spinner = false;
+      });
+
+      let searchResult = [];
       this.laureates.forEach((laureate) => {
-        if (
-          laureate.Name.toLowerCase().includes(this.searchQuery) ||
-          laureate.Surname.toLowerCase().includes(this.searchQuery)
-        ) {
-          this.sortedLaureates.push(laureate);
+        if (laureate.firstname && laureate.surname) {
+          if (
+            laureate.firstname.toLowerCase().includes(this.searchQuery) ||
+            laureate.surname.toLowerCase().includes(this.searchQuery)
+          ) {
+            searchResult.push(laureate);
+          }
         }
       });
+      this.laureates = [];
+      this.laureates = searchResult;
     },
     saveChange(index, field, e) {
       var updates = {};
 
-      field = field.toLowerCase();
-
       if (field === "year" || field === "category") {
-        updates["/laureates/" + index + "/" + "prizes/0/" + field] =
-          e.target.value;
-      } else updates["/laureates/" + index + "/" + field] = e.target.value;
+        updates[`/laureates/${index}/prizes/0/${field}`] = e.target.value;
+      } else updates[`/laureates/${index}/${field}`] = e.target.value;
 
       update(ref(db), updates);
-      window.location.reload();
+      // window.location.reload();
+    },
+    remove(laureate) {
+      const index = this.laureates.indexOf(laureate);
+
+      remove(ref(db, `/laureates/${index}/`));
+    },
+
+    addLaureate(surname, firstname, country, category, year) {
+      const index = Number(this.laureates.length);
+      set(ref(db, `/laureates/${index}/`), {
+        surname: surname,
+        firstname: firstname,
+        bornCountryCode: country,
+      });
+      set(ref(db, `/laureates/${index}/prizes/0/`), {
+        category: category,
+        year: year,
+      });
+      this.addModal = false;
     },
   },
 
   mounted() {
-    this.sortedLaureates = this.laureates;
+    this.spinner = true;
     const laureatesRef = ref(db, "laureates/");
 
     onAuthStateChanged(auth, (user) => {
@@ -139,15 +194,9 @@ export default {
 
     onValue(laureatesRef, (snapshot) => {
       const laureateData = snapshot.val();
-      laureateData.forEach((laureate) => {
-        this.laureates.push({
-          Surname: laureate.surname,
-          Name: laureate.firstname,
-          Country: laureate.bornCountryCode,
-          Category: laureate.prizes[0].category,
-          Year: laureate.prizes[0].year,
-        });
-      });
+      console.log(typeof this.laureates);
+      this.laureates = laureateData;
+      this.spinner = false;
     });
   },
 };
