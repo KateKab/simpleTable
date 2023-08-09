@@ -3,10 +3,10 @@
     <nav>
       <router-link to="/register"> Register </router-link> |
       <router-link to="/sign-in"> Sign-In </router-link> |
-      <router-link v-if="isLoggedIn" to="/table"> Table
-        <span v-if="isLoggedIn">
+      <router-link  to="/table"> Table
+        <!-- <span v-if="isLoggedIn">
           <button @click="signOut">Logout</button>
-        </span>
+        </span> -->
       </router-link>
     </nav>
   </div>
@@ -20,7 +20,7 @@ import { useRouter } from 'vue-router'
 export default {
   data() {
     return {
-      isLoggedIn: false,
+      isLoggedIn: true, // пользователь всегда авторизован
       router: useRouter(),
     }
   },

@@ -1,23 +1,9 @@
 <template>
   <div class="modal-backdrop">
     <div class="modal">
-      <label>Surname <input type="text" v-model="surname" /></label>
+      <label>Lastname <input type="text" v-model="lastname" /></label>
       <label>Firstname <input type="text" v-model="firstname" /></label>
-      <label>Country <input type="text" v-model="country" /></label>
-      <label>Category <input type="text" v-model="category" /></label>
-      <label>Year <input type="text" v-model="year" /></label>
-      <button
-        @click="
-          $emit(
-            'addLaureate',
-            this.surname,
-            this.firstname,
-            this.country,
-            this.category,
-            this.year
-          )
-        "
-      >
+      <button @click="$emit('addItem', this.lastname, this.firstname)">
         Add
       </button>
     </div>
@@ -26,14 +12,11 @@
 
 <script>
 export default {
-  emits: ["addLaureate"],
+  emits: ["addItem"],
   data() {
     return {
-      surname: "",
+      lastname: "",
       firstname: "",
-      country: "",
-      category: "",
-      year: "",
     };
   },
 };

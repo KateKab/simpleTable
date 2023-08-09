@@ -1,25 +1,17 @@
 <template>
   <div>
-    <div>
-      <input
-        type="search"
-        v-model="searchQuery"
-        placeholder="Search Laureate"
-      />
-      <button @click="search">Search</button>
-    </div>
     <button @click="previous" :disabled="currentPage == 0">prev</button>
     <label>{{ currentPage + 1 }}/{{ pages }}</label>
     <button @click="next" :disabled="currentPage == pages - 1">next</button>
   </div>
   <div>
     <button @click="addModal = true">Add</button>
-    <add-item v-if="addModal" @addLaureate="addLaureate"></add-item>
+    <add-item v-if="addModal" @addItem="addItem"></add-item>
   </div>
   <loader v-if="spinner"></loader>
   <table v-else id="tableComponent">
     <caption>
-      Nobel Prize Laureates
+      Users Data
     </caption>
     <thead>
       <tr>
@@ -31,20 +23,20 @@
     </thead>
     <tbody>
       <!-- Loop through the list get the each laureate data -->
-      <tr v-for="laureate in paginatedLaureates" :key="laureate">
-        <td v-if="laureate" v-for="field in fields" :key="field">
+      <tr v-for="item in paginatedTable" :key="item">
+        <td v-if="item" v-for="field in fields" :key="field">
           <!-- отображаем инпут если индекс кликнутого лауреата совпадает с текущим-->
           <input
             type="text"
-            v-if="laureates.indexOf(laureate) == index"
-            :value="getValue(laureate, field)"
+            v-if="items.indexOf(item) == index"
+            :value="item[field]"
             @keyup.enter="saveChange(index, field, $event)"
           />
-          <template v-else>{{ getValue(laureate, field) }}</template>
+          <template v-else>{{ item[field] }}</template>
         </td>
-        <template v-if="laureate">
-          <button @click="edit(laureate)">Edit</button>
-          <button @click="remove(laureate)">Delete</button></template
+        <template v-if="item">
+          <button @click="edit(item)">Edit</button>
+          <button @click="remove(item)">Delete</button></template
         >
       </tr>
     </tbody>
@@ -63,25 +55,25 @@ import {
   set,
 } from "firebase/database";
 import Loader from "../components/Loader.vue";
-import AddItem from "../components/addItem.vue";
+import AddItem from "../components/AddItem.vue";
 
-const auth = getAuth();
+// const auth = getAuth();
 const router = useRouter();
 const db = getDatabase();
+const dbName = "users/";
 
 export default {
   data() {
     return {
-      laureates: [],
+      items: [],
       searchQuery: "",
-      fields: ["surname", "firstname", "bornCountryCode", "category", "year"],
+      fields: ["firstname", "lastname"],
       currentPage: 0,
       pageItems: 1000,
       asc: true,
       index: -1,
       spinner: false,
       addModal: false,
-      lala: [],
     };
   },
   components: {
@@ -91,89 +83,85 @@ export default {
 
   computed: {
     pages() {
-      return Math.ceil(this.laureates.length / this.pageItems);
+      return Math.ceil(this.items.length / this.pageItems);
     },
-    paginatedLaureates() {
+
+    paginatedTable() {
       let start = this.currentPage * this.pageItems;
       let end = start + this.pageItems;
-      return this.laureates.slice(start, end);
+      return this.items.slice(start, end);
     },
   },
 
   methods: {
-    getValue(laureate, field) {
-      if (field == "year" || field == "category") {
-        return laureate.prizes[0][field];
-      } else return laureate[field];
+    edit(item) {
+      this.index = this.items.indexOf(item);
     },
-    edit(laureate) {
-      this.index = this.laureates.indexOf(laureate);
-    },
-    next() {
-      this.currentPage++;
-    },
-    previous() {
-      this.currentPage--;
-    },
-    sortTable(field) {
-      if (this.asc) {
-        this.laureates.sort((x, y) => (x[field] > y[field] ? -1 : 1));
-        this.asc = false;
-      } else {
-        this.laureates.sort((x, y) => (x[field] < y[field] ? -1 : 1));
-        this.asc = true;
-      }
-    },
-    search() {
-      this.spinner = true;
-      const laureatesRef = ref(db, "laureates/");
-      onValue(laureatesRef, (snapshot) => {
-        const laureateData = snapshot.val();
-        console.log(typeof this.laureates);
-        this.laureates = laureateData;
-        this.spinner = false;
-      });
 
-      let searchResult = [];
-      this.laureates.forEach((laureate) => {
-        if (laureate.firstname && laureate.surname) {
-          if (
-            laureate.firstname.toLowerCase().includes(this.searchQuery) ||
-            laureate.surname.toLowerCase().includes(this.searchQuery)
-          ) {
-            searchResult.push(laureate);
-          }
-        }
-      });
-      this.laureates = [];
-      this.laureates = searchResult;
-    },
     saveChange(index, field, e) {
       var updates = {};
 
-      if (field === "year" || field === "category") {
-        updates[`/laureates/${index}/prizes/0/${field}`] = e.target.value;
-      } else updates[`/laureates/${index}/${field}`] = e.target.value;
+      updates[`/${dbName}${index}/${field}`] = e.target.value;
 
       update(ref(db), updates);
       // window.location.reload();
     },
-    remove(laureate) {
-      const index = this.laureates.indexOf(laureate);
 
-      remove(ref(db, `/laureates/${index}/`));
+    next() {
+      this.currentPage++;
     },
 
-    addLaureate(surname, firstname, country, category, year) {
-      const index = Number(this.laureates.length);
-      set(ref(db, `/laureates/${index}/`), {
-        surname: surname,
-        firstname: firstname,
-        bornCountryCode: country,
+    previous() {
+      this.currentPage--;
+    },
+
+    sortTable(field) {
+      if (this.asc) {
+        this.items.sort((x, y) => (x[field] > y[field] ? -1 : 1));
+        this.asc = false;
+      } else {
+        this.items.sort((x, y) => (x[field] < y[field] ? -1 : 1));
+        this.asc = true;
+      }
+    },
+
+    search() {
+      this.spinner = true;
+      const tableDataRef = ref(db, "${dbName}");
+
+      onValue(tableDataRef, (snapshot) => {
+        const tableData = snapshot.val();
+
+        this.items = tableData;
+        this.spinner = false;
       });
-      set(ref(db, `/laureates/${index}/prizes/0/`), {
-        category: category,
-        year: year,
+
+      let searchResult = [];
+      this.items.forEach((item) => {
+        if (item.firstname && item.surname) {
+          if (
+            item.firstname.toLowerCase().includes(this.searchQuery) ||
+            item.surname.toLowerCase().includes(this.searchQuery)
+          ) {
+            searchResult.push(item);
+          }
+        }
+      });
+      this.items = [];
+      this.items = searchResult;
+    },
+
+    remove(item) {
+      const index = this.items.indexOf(item);
+
+      remove(ref(db, `/${dbName}${index}/`));
+    },
+
+    addItem(lastname, firstname) {
+      const index = Number(this.items.length);
+      set(ref(db, `/${dbName}${index}/`), {
+        lastname: lastname,
+        firstname: firstname,
       });
       this.addModal = false;
     },
@@ -181,21 +169,12 @@ export default {
 
   mounted() {
     this.spinner = true;
-    const laureatesRef = ref(db, "laureates/");
+    const tableDataRef = ref(db, dbName);
 
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        alert(
-          "you must be logged in to view this. redirecting to the home page"
-        );
-        router.push("/");
-      }
-    });
-
-    onValue(laureatesRef, (snapshot) => {
-      const laureateData = snapshot.val();
-      console.log(typeof this.laureates);
-      this.laureates = laureateData;
+    onValue(tableDataRef, (snapshot) => {
+      const tableData = snapshot.val();
+      this.items = tableData;
+      console.log(tableData);
       this.spinner = false;
     });
   },
